@@ -1,0 +1,8 @@
+#These lines allow binary logging for the project to actually work
+#Paste these lines in your DB config file
+
+""
+log_bin = mariadb-bin
+binlog_format = ROW
+binlog_row_image = FULL
+""
