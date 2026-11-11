@@ -70,4 +70,11 @@ A line mentioning `--flashback` should appear. If the command isn't found, add M
 ### Decisions And Reasoning:
 - **INT AUTO_INCREMENT KEYS** : Considered UUIDs but dropped them because they are bigger, harder to read in binlog file and are not what the project tests.
 - **4 tables, not 3** : An order can contain several products, so `ordered_items` is the link table (many-to-many).
-- 
+- `status` is the disaster target. Setting every order to one value is an obvious, realistic corruption.
+
+## 5. Seeding Data
+- Goal: enough realistic rows that the damage and the recovery are visible and the timings mean something.
+
+How we did it:
+- MariaDB's `SEQUENCE` engine: `seq_1_to_N` is a virtual table of numbers; ``INSERT ... SELECT ... FROM seq_1_to_N`` generates N rows at once.
+- **Uniqueness vs randomness**. Anything that must be unique (emails, product names) is built from ``seq``. Anything that may repeat (price, stock, country) uses ``RAND()``. Random values in a UNIQUE column would eventually collide and fail the insert.
