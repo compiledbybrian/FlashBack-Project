@@ -1,1 +1,3 @@
 shop_backup.sql
+out/
+config/recovery.cnf

@@ -24,6 +24,7 @@ UPDATE orders
 SET status = 'delivered';
 
 -- Check what position was last written after commmit of changes
+-- Note the start pos of the GDIT and the last pos of the final commit check README for or example
 SHOW MASTER STATUS;
 
 -- Showing that all the rows were changed status to 'delivered'
