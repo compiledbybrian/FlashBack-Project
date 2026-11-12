@@ -1,4 +1,4 @@
-#  FLASHBACK: undo without a restore - Databases Project 2026
+#  A project for area 9, "FLASHBACK: undo without a restore" for the [MariaDB student database projects, 2026-09](https://mariadb.org/bachelor_hackathon_2026-09/).
 
 ## 1. What this project is about ?
 - MariaDB Flashback : undo a bad change using the binary log without restoring a backup
