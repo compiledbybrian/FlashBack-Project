@@ -1,4 +1,4 @@
-# FLASHBACK PROJECT
+#  FLASHBACK: undo without a restore - Databases Project 2026
 
 ## 1. What this project is about ?
 - MariaDB Flashback : undo a bad change using the binary log without restoring a backup
