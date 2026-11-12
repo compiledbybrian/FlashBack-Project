@@ -7,7 +7,7 @@
   powershell -ExecutionPolicy Bypass -File scripts\restore.ps1 -DumpFile shop_backup.sql
 
 .NOTES
-  - Run it on the SAME damaged state you used for recover.ps1 (run sql/03_disaster.sql first).
+  - Run it on the SAME damaged state you used for recover.ps1 (run sql/disaster.sql first).
   - The dump must have been taken from healthy data, before the disaster.
   - A restore overwrites the WHOLE database with the dump's contents: anything written
     after the dump was taken is lost. FLASHBACK only reverses the one bad transaction.
@@ -54,7 +54,7 @@ Write-Host ("Dump: {0} ({1:N1} MB, written {2})" -f $dumpInfo.Name, ($dumpInfo.L
 $before = [int](Invoke-Sql $MismatchSql)
 Write-Host "Rows differing from orders_copy before restore: $before"
 if (($before -eq 0) -and (-not $Force)) {
-    Fail "orders already matches orders_copy, so there is nothing to compare. Run sql/03_disaster.sql first (or use -Force)."
+    Fail "orders already matches orders_copy, so there is nothing to compare. Run sql/disaster.sql first (or use -Force)."
 }
 
 # ---------- 3. restore, timed ----------

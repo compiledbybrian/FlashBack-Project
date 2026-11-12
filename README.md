@@ -12,7 +12,15 @@
   
 ### 2.1 Windows setup
 
-**1. Edit the config file.** Open `my.ini` in MariaDB's data folder (e.g. `C:\Program Files\MariaDB 12.3\data\my.ini`). Saving it may need an editor running as administrator. Under `[mysqld]`, add:
+**1. Prerequisites**
+| Need | Why |
+| --- | --- |
+| Maria DB server 10.x  or newer | Project uses the `mariadb-binlog --flashback` which is specific to MariaDB |
+| Windows Powershell | To run the scripts `recover.ps1` and `restore.ps1` (bash scripts still a work in progress) |
+
+
+
+**2. Edit the config file.** Open `my.ini` in MariaDB's data folder (e.g. `C:\Program Files\MariaDB 12.3\data\my.ini`). Saving it may need an editor running as administrator. Under `[mysqld]`, add:
 
 ```ini
 log_bin = mariadb-bin
@@ -26,7 +34,7 @@ binlog_row_image = FULL
 
 A copy of these lines is in `config/my.ini.example`.
 
-**2. Restart the MariaDB service** (the config is only read at startup). In an administrator terminal:
+**3. Restart the MariaDB service** (the config is only read at startup). In an administrator terminal:
 
 ```
 net stop MariaDB
@@ -35,7 +43,7 @@ net start MariaDB
 
 Use the real service name if yours differs.
 
-**3. Verify in the MariaDB terminal client.** Don't use an editor extension for this, because some hide `SHOW` output.
+**4. Verify in the MariaDB terminal client.** Don't use an editor extension for this, because some hide `SHOW` output.
 
 ```sql
 SHOW VARIABLES LIKE 'log_bin';           -- ON
@@ -46,7 +54,10 @@ SHOW BINARY LOGS;                        -- lists mariadb-bin.00000N files
 
 If `SHOW BINARY LOGS;` says binary logging is not in use, check that the lines are under `[mysqld]`, that you edited the right `my.ini`, and that the service was restarted.
 
-**4. Check the FLASHBACK tool exists:**
+
+
+
+**5. Check the FLASHBACK tool exists:**
 
 ```
 mariadb-binlog --help | findstr flashback
@@ -55,6 +66,9 @@ mariadb-binlog --help | findstr flashback
 A line mentioning `--flashback` should appear. If the command isn't found, add MariaDB's `bin` folder to PATH and open a new terminal.
 
 **NB:** a new log file starts on every restart, so many small files pile up.
+
+
+
 
 
 ## 3. Schema Design
@@ -78,3 +92,43 @@ A line mentioning `--flashback` should appear. If the command isn't found, add M
 How we did it:
 - MariaDB's `SEQUENCE` engine: `seq_1_to_N` is a virtual table of numbers; ``INSERT ... SELECT ... FROM seq_1_to_N`` generates N rows at once.
 - **Uniqueness vs randomness**. Anything that must be unique (emails, product names) is built from ``seq``. Anything that may repeat (price, stock, country) uses ``RAND()``. Random values in a UNIQUE column would eventually collide and fail the insert.
+- Picking from a list using `ELT(n, 'a', 'b', ..)` for some of our dummy data.
+
+| Table | Rows | Notes |
+| --- | --- | --- |
+| `customers` | 1000 | formatted as `customer_N`, unique emails using `seq` |
+| `products` | 100 | numbered names, random prices from 5.00 -200.00 , random stock |
+|`orders` | 20,000 | 	random customer `(FLOOR(1 + RAND() * 1000)`, `FLOOR` is required or values round to a nonexistent customer 1001), random timestamp in the past year, weighted status | 
+| ` ordered_items`| 20,000 | one row per order avoids composite-key collisions; price copied from products via a `JOIN` so data stays coherent
+
+
+**NB** : Seed scripts are not rerunnable. A second/ n run will double the rows. Reseed by running the schema first(which drops the tables). THEN run the seed  file.
+
+### Baseline for our status's in our orders
+- Run the command:
+  
+```
+SELECT status, COUNT(*) FROM orders GROUP BY status;
+```
+
+
+![Baseline for order status distribution](pics/baseline%20skew%20for%20status.png)
+
+
+## Disastor Scenario
+
+![Funny database meme](pics/DB%20meme.jpg)
+
+- Backstory: A deployment meant to change one order but the `WHERE` clause was forgotten. Intended statement is commented out in the file `sql/disastor.sql`
+- Order of steps to reverse the damage:
+
+**1.Backup DB**
+- In a real world scenario you wouldn't know when to back up or it is done in regular intervals
+- Backup the healthy version of the data because it is needed for the timing comaprison.
+
+```
+mariadb-dump --defaults-extra-file=config/recovery.example.cnf --single-transaction --result-file=shop_backup.sql shop
+
+```
+- Run the command (make sure your db account and password are in config/recovery.cnf).
+- 

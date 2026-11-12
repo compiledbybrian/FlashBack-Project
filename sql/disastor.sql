@@ -1,7 +1,7 @@
 /*
 WARNING: the snapshot below is copied from orders AS IT IS RIGHT NOW.
 Run this file only on healthy data. If the table is already damaged (for example
-this file was run twice), re-seed first: run 01_schema.sql, then 02_seed.sql.
+this file was run twice), re-seed first: run schema.sql, then seed.sql.
 Otherwise the snapshot is bad and the recovery check will report "nothing to recover".
 */
 
