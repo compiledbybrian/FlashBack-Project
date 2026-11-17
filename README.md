@@ -159,7 +159,7 @@ SOURCE sql/disaster.sql;
 
 
 
-## Recovery / Restore
+## 6. Recovery / Restore
 
 - Command:
 ``` 
@@ -168,4 +168,57 @@ mariadb-binlog --flashback --start-position=<start> --stop-position=<stop> --dat
 
 - Writes a `.sql` file; applying it undoes the incident. Add `--verbose` for readable `###` pseudo-SQL (the file then gets very large: about 2.6 MB for 12,052 rows).
 - The generated file is mostly base64 `BINLOG '...'` blocks.
-- Output is one transaction (`START TRANSACTION` ... `COMMIT`), with the row reads `WHERE @4=3 SET @4=<origin`
+- Output is one transaction (`START TRANSACTION` ... `COMMIT`), with the row reads in reverse order. Only the rows that actually changed are reversed.
+- Verified in the `--verbose` output:  `# Number of rows: 12052`, each row reads `WHERE @4=3 SET @4=<original>` (column 4 is `status`, 3 is `delivered`), and the restored values split 6077 shipped / 4046 pending / 1929 cancelled, which adds up to 12,052 and matches the baseline.
+- Applied from the terminal with `SOURCE <file>` (not from the editor).
+- **Gotcha: the generated file contains `SET TIMESTAMP` statements**, which freeze `NOW()`for the rest of that session. A second `NOW(6)` after applying printed 18:17:08.000000, an old time. Use `SYSDATE(6)` (or an external stopwatch) for timing.
+- Write output with `--result-file`, not shell `>` (PowerShell `>` re-encodes to UTF-16).
+- Watch time zones: check `@@global.time_zone`, `@@session.time_zone`, `NOW()`; binlog time options use the server's local time.
+
+**Script: scripts/recover.ps1** (written for the project; one run against real data was done).
+
+- Parameters: `-LogFile`, `-StartPos`, `-StopPos` (required); `-Database`(default shop), `-Cnf` (default `config/recovery.cnf`), `-Inspect` (adds `--verbose`), `-Force`.
+- Flow: check inputs and tools, count rows that differ from `orders_copy` (stop with "Nothing to recover" if 0), safety-check that the server's current log file and position equal the log name and stop position (so nothing was written after the incident; fails unless `-Force`), generate `out/flashback_<timestamp>.sql` , apply it, re-count the differences, print a summary with generate, apply and total seconds. Exit code is 1 if the result is not verified.
+- Each run writes a new timestamped file in out/ so earlier output is never overwritten ( `out/` is gitignored).
+- Confirmed: run against already-recovered data it prints "Nothing to recover".
+
+**Connection file:** `config/recovery.cnf`(an option file with file is gitignored; `[client]` , `user` , `password` ). The real `recovery.cnf.example` is committed. It is passed as `--defaults-extra-file` , which must be the first argument.
+
+
+## 7. Verification (DONE, method)
+
+Proof, not assumption, in three layers
+
+1. **Row-by-row diff** of `orders` against the `orders_copy` snapshot (null-safe `<=>` ), plus any rowcount difference. The result must be 0. The scripts print this count before and after.
+``` sql
+SELECT (SELECT COUNT(*) FROM orders o JOIN orders_copy c ON c.order_id = o.order_id 
+    WHERE NOT (o.customer_id <=> c.customer_id AND o.ordered_at <=> 
+    c.ordered_at AND o.status <=> c.status)) 
+    + ABS((SELECT COUNT(*) FROM orders) - (SELECT COUNT(*) FROM orders_copy))
+```
+2. **Status counts** ( `GROUP BY status` ) back to the baseline in section 5.
+3. **`CHECKSUM TABLE`** (`sql/checksums.sql`) before the disaster and after recovery. `customers`, `products` and `ordered_items` must be identical (untouched by the incident), and `orders` must return to its "before" value.
+- Limitation to state: the snapshot is made by the same drill, so layer 1 only proves something if the snapshot itself was healthy. The checksum comparison is the independent check.
+
+## 8. Timing comparison (TODO:scripts ready, numbers missing)
+
+- Two runs from the same damaged state: FLASHBACK (`recover.ps1`) vs full backup + restore (`restore.ps1 -DumpFile shop_backup.sql`). REport both numbers side by side.
+- `restore.ps1` : refuses to run if there is nothing to repair (unless `-Force` ), restores with `SOURCE` under a stopwatch, re-verifies with the same mismatch query, prints a summary.
+- A restore overwrites the **whole** database, so anything written after the dump is lost; FLASHBACK reverses only the one bad transaction. In this drill nothing was written in between, so the restore looks lossless; in real life it usually is not.
+- Binary logging is on for both runs; both start from the same damaged state.
+- Timing tool: stopwatch inside the scripts; never `NOW()` after applying a flashback file (see the `SET TIMESTAMP` gotcha in section 6).
+
+## 9. Limits of FLASHBACK
+
+Known so far (from our run and the docs):
+
+- Row-based DML only ( `INSERT` , `UPDATE `, `DELETE` ); not DDL (dropped/altered tables).
+- Needs the binlog config in section 3, and the log files for the window must still exist (not purged or rotated away).
+- Unchanged rows are not in the log, so there is nothing to reverse for them (this is correct, not a gap).
+- It reverses a window of the log: anything else that happened in the same window gets reversed too, so keep the window tight and check for other writers.
+- Seeding and copying are logged as well, so the recovery window must start after them. To test and record:
+- What happens without the binlog (graded item).
+- `DROP TABLE` / `TRUNCATE` / `ALTER TABLE`: confirm they cannot be flashed back.
+- Cascaded foreign-key deletes: check whether they are logged as row events (we avoided `CASCADE` , section 4).
+- Writes made by other sessions after the incident: what FLASHBACK does to them if the window is too wide.
+
