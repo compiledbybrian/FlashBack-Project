@@ -160,3 +160,12 @@ SOURCE sql/disaster.sql;
 
 
 ## Recovery / Restore
+
+- Command:
+``` 
+mariadb-binlog --flashback --start-position=<start> --stop-position=<stop> --database=shop --result-file=<out.sql> <logfile> 
+```
+
+- Writes a `.sql` file; applying it undoes the incident. Add `--verbose` for readable `###` pseudo-SQL (the file then gets very large: about 2.6 MB for 12,052 rows).
+- The generated file is mostly base64 `BINLOG '...'` blocks.
+- Output is one transaction (`START TRANSACTION` ... `COMMIT`), with the row reads `WHERE @4=3 SET @4=<origin`
