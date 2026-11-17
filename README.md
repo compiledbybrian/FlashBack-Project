@@ -131,4 +131,32 @@ mariadb-dump --defaults-extra-file=config/recovery.example.cnf --single-transact
 
 ```
 - Run the command (make sure your db account and password are in config/recovery.cnf).
-- 
+
+**2. Flush the binary log file** 
+- Start a new log file so that the bad `UPDATE` is the only content in it
+- Record the start maker : `SHOW MASTER STATUS();` (file and postion)
+
+![first mater show](pics/first%20mater%20show.png)
+
+**3.Run the bad update**
+- Run the bad update..
+  
+![result of disastor](pics/result%20of%20disastor.png)
+
+- The bad update made every order's status `'delivered'`.
+- Note thr end marker of the bin log file (field position).
+  
+### Other details
+- Positions are the primary way to define a window/point in time we want to recover to.
+- Unchanged rows are not logged (almost like a version history Git) so FLASHBACK never touches them.
+- You can use sql/checksum.sql to verify this.
+![Check sum after disaster](pics/Checksum%20after%20disaster.png)
+- **Run sql/disastor in the terminal for better results**. We used an extension at first running the sql statements but started struggiling on commands like `SOURCE`.
+```
+SOURCE sql/disaster.sql;
+```
+- Remember your `WHERE` clauses next time :)
+
+
+
+## Recovery / Restore
