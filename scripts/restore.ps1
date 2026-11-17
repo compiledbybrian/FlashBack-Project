@@ -13,7 +13,7 @@
     after the dump was taken is lost. FLASHBACK only reverses the one bad transaction.
   - Needs config/recovery.cnf (see recovery.cnf.example).
   - Verification compares orders with orders_copy. Both come from the dump here, so this
-    proves orders is healthy only because the dump's orders_copy was a healthy snapshot.
+    proves orders is healthy only because the dump's orders_copy was a healthy screenshot.
     Also compare CHECKSUM TABLE output (sql/checksums.sql) before the disaster and after.
 #>
 param(
@@ -33,7 +33,7 @@ function Invoke-Sql([string] $sql) {
     return $out
 }
 
-# Rows in orders that differ from the snapshot, plus any difference in row count.
+# Rows in orders that differ from the screenshot, plus any difference in row count.
 $MismatchSql = @"
 SELECT (SELECT COUNT(*) FROM orders o JOIN orders_copy c ON c.order_id = o.order_id
         WHERE NOT (o.customer_id <=> c.customer_id
@@ -73,7 +73,7 @@ Invoke-Sql "SELECT status, COUNT(*) FROM orders GROUP BY status" | ForEach-Objec
 # ---------- 5. summary ----------
 Write-Host ""
 Write-Host "================ SUMMARY ================"
-Write-Host ("Rows differing from snapshot : {0} -> {1}" -f $before, $after)
+Write-Host ("Rows differing from screenshot : {0} -> {1}" -f $before, $after)
 Write-Host ("Restore (whole database)     : {0:N2} s" -f $restoreSec)
 Write-Host "Dump file                    : $DumpFile"
 if ($after -eq 0) { Write-Host "VERIFIED: orders matches orders_copy" -ForegroundColor Green; exit 0 }

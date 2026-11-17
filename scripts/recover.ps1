@@ -1,7 +1,7 @@
 <#
 .
   FLASHBACK recovery drill: reverse one bad transaction from the MariaDB binary log,
-  verify the result against a known-good snapshot, and time every step.
+  verify the result against a known-good screenshot, and time every step.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File scripts\recover.ps1 `
@@ -9,7 +9,7 @@
 
 .NOTES
   - Needs config/recovery.cnf (copy recovery.cnf.example and fill in your password).
-  - Needs the snapshot table orders_copy, taken BEFORE the incident.
+  - Needs the screenshot table orders_copy, taken BEFORE the incident.
   - Only reads the binlog and writes out/flashback_<timestamp>.sql until the apply step.
   - Applying the same flashback file twice fails (rows no longer match); the script
     detects "already recovered" first and exits.
@@ -37,7 +37,7 @@ function Invoke-Sql([string] $sql, [switch] $NoDb) {
     return $out
 }
 
-# Number of rows in orders that differ from the snapshot, plus any difference in row count.
+# Number of rows in orders that differ from the screenshot, plus any difference in row count.
 $MismatchSql = @"
 SELECT (SELECT COUNT(*) FROM orders o JOIN orders_copy c ON c.order_id = o.order_id
         WHERE NOT (o.customer_id <=> c.customer_id
@@ -107,7 +107,7 @@ Invoke-Sql "SELECT status, COUNT(*) FROM orders GROUP BY status" | ForEach-Objec
 $total = $genSec + $applySec
 Write-Host ""
 Write-Host "================ SUMMARY ================"
-Write-Host ("Rows differing from snapshot : {0} -> {1}" -f $before, $after)
+Write-Host ("Rows differing from screenshot : {0} -> {1}" -f $before, $after)
 Write-Host ("Generate                     : {0:N2} s" -f $genSec)
 Write-Host ("Apply                        : {0:N2} s" -f $applySec)
 Write-Host ("FLASHBACK total              : {0:N2} s" -f $total)
